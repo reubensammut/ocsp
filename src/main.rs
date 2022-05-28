@@ -10,10 +10,7 @@ use rustls::{
     Stream,
 };
 
-
-
 fn handle_certs(certs: &[Certificate]) {
-    //x509-parser = "0.13.2"certs[0].0
     let f = x509_parser::parse_x509_certificate(&certs[0].0).unwrap();
 
     println!("{:?}", f.1);
