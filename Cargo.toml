@@ -1,0 +1,12 @@
+[package]
+name = "ocsp"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rustls = "0.20.6"
+webpki-roots = "0.22.3"
+x509-parser = "0.13.2"
+oid-registry = "0.6.0"
