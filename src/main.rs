@@ -2,11 +2,12 @@ extern crate rustls;
 extern crate webpki_roots;
 extern crate rand; 
 
-//use std::fs::File;
 use std::io::{Result, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 use rand::Rng;
+
+use clap::Parser;
 
 use rustls::{
     Certificate, ClientConfig, ClientConnection, OwnedTrustAnchor, RootCertStore, ServerName,
@@ -17,6 +18,18 @@ use x509_parser::der_parser::oid;
 use x509_parser::prelude::ParsedExtension::{AuthorityInfoAccess,AuthorityKeyIdentifier};
 use x509_parser::prelude::{AccessDescription, X509Certificate};
 use x509_parser::prelude::GeneralName::URI;
+
+/// Simple program to check certificate with ocsp
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Domain to check
+    domain: String,
+
+    /// Port to check 
+    #[clap(short, long, default_value_t = 443)]
+    port: u16,
+}
 
 fn get_ocsp_url(cert : &X509Certificate) -> String {
     let extensions = cert.extensions_map().unwrap(); 
@@ -48,8 +61,6 @@ fn get_issuer_key_hash(cert : &X509Certificate) -> Vec<u8> {
 
 fn build_request(certs: &[Certificate]) -> (Vec<u8>,String) {
     let cert = x509_parser::parse_x509_certificate(&certs[0].0).unwrap().1;
-
-    //File::create("cert.der").unwrap().write(&certs[0].0).unwrap();
 
     let mut hasher = Sha1::new();
     hasher.update(cert.issuer().as_raw());
@@ -94,21 +105,35 @@ fn build_request(certs: &[Certificate]) -> (Vec<u8>,String) {
         }));
     });
 
-    println!("{:?}", result);
-
     (result,ocsp_host)
 }
 
-fn make_ocsp_request(certs: &[Certificate]) {
+fn parse_response(resp : Vec<u8>) -> bool {
+    let result : asn1::ParseResult<_> = asn1::parse(resp.as_slice(), |d| {
+        return d.read_element::<asn1::Sequence>()?.parse(|d| {
+            let r = d.read_element::<asn1::Enumerated>()?;
+            let _ = d.read_explicit_element::<asn1::Sequence>(0)?;
+            return Ok(r);
+        });
+    });
+
+    result.unwrap().value() == 0
+}
+
+fn make_ocsp_request(domain: String, certs: &[Certificate]) {
     let (asn1_req,host) = build_request(certs);
     let client = reqwest::blocking::Client::new();
     let resp = client.post(host).header("Content-Type", "ocsp-request").body(asn1_req).send().unwrap().bytes().unwrap();
+    let result = parse_response(resp.to_vec());
 
-    println!("{:?}", resp.as_ref());
+    println!("Certificate check for {}: {}", domain, if result { "Ok" } else { "Failed" })
 }
 
 fn main() -> Result<()> {
-    let mut stream = TcpStream::connect("google.com:443").unwrap();
+    let args = Args::parse();
+
+    let domain = args.domain;
+    let mut stream = TcpStream::connect(format!("{}:{}", domain, args.port)).unwrap();
 
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
@@ -124,7 +149,7 @@ fn main() -> Result<()> {
         .with_root_certificates(root_store)
         .with_no_client_auth();
 
-    let server_name = ServerName::try_from("google.com").unwrap();
+    let server_name = ServerName::try_from(domain.as_ref()).unwrap();
 
     let mut conn = ClientConnection::new(Arc::new(config), server_name).unwrap();
 
@@ -138,7 +163,7 @@ fn main() -> Result<()> {
 
     match certs {
         None => println!("Domain has no certs"),
-        Some(c) => make_ocsp_request(c),
+        Some(c) => make_ocsp_request(domain, c),
     }
 
     Ok(())
