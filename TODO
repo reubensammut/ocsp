@@ -1,9 +1,12 @@
 # TODO
 
 ## Extraction
-- [ ] Issuer name
-- [ ] Issuer key hash
-- [ ] Serial number
-- [ ] OCSP URL 
+- [x] Issuer name
+- [x] Issuer key hash
+- [x] Serial number
+- [x] OCSP URL 
 
-## ...
+## Parse response
+- [ ] Understand response
+- [ ] Use asn1-parser to parse response
+- [ ] Check Status
