@@ -7,6 +7,9 @@
 - [x] OCSP URL 
 
 ## Parse response
-- [ ] Understand response
-- [ ] Use asn1-parser to parse response
-- [ ] Check Status
+- [x] Understand response
+- [x] Use asn1-parser to parse response
+- [x] Check Status
+
+## Future
+- [ ] Better error handling
